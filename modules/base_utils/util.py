@@ -70,13 +70,14 @@ def extract_toml(experiment_name, module_name=None):
  
 
 def load_model(model_flag, num_classes=10):
+    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     if num_classes != 10 and model_flag not in ['r32p', 'r18', 'r18-tin']:
         raise NotImplementedError
 
     if model_flag == "r32p":
         import modules.base_utils.model.resnet as resnet
 
-        return SequentialImageNetworkMod(resnet.resnet32(num_classes)).cuda()
+        return SequentialImageNetworkMod(resnet.resnet32(num_classes)).to(device)
     elif model_flag == "r18":
         from pytorch_cifar.models import ResNet, BasicBlock        
         return SequentialImageNetwork(ResNet(BasicBlock,
