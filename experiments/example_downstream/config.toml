@@ -5,7 +5,7 @@
 
 # Module to train a user model on input labels.
 [train_user]
-input_labels = "experiments/example_attack/1500.npy"
+input_labels = "experiments/example_attack/1500_worker{}.npy"
 user_model = "r32p"
 trainer = "sgd"
 dataset = "cifar"
@@ -15,3 +15,5 @@ poisoner = "1xs"
 output_dir = "experiments/example_downstream/"
 soft = false
 alpha = 0.0
+num_honests = 2
+num_poisoned = 1
