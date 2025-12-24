@@ -91,9 +91,7 @@ def run(experiment_name, module_name, **kwargs):
         scheduler=scheduler,
         epochs=epochs,
         record=True,
-        agg_method="mean",
-        num_honests=num_honests,
-        num_poisoned=num_poisoned
+        agg_method="mean"
     )
 
     # Save results
