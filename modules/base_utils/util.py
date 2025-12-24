@@ -76,7 +76,7 @@ def load_model(model_flag, num_classes=10):
     if model_flag == "r32p":
         import modules.base_utils.model.resnet as resnet
 
-        return SequentialImageNetworkMod(resnet.resnet32(num_classes)).to(torch.device('mps') if torch.backends.mps.is_available() else torch.device('cuda:0' if torch.cuda.is_available() else 'cpu'))      #.cuda()
+        return SequentialImageNetworkMod(resnet.resnet32(num_classes)).cuda()
     elif model_flag == "r18":
         from pytorch_cifar.models import ResNet, BasicBlock        
         return SequentialImageNetwork(ResNet(BasicBlock,
