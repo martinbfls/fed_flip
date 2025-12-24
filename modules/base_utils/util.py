@@ -316,9 +316,9 @@ def mini_train_multi(
                     loss = clf_loss(y_pred, y)
                     correct = clf_correct(y_pred, y)
                     loss.backward()
-                    for name, param in model.named_parameters():
+                    for param in model.parameters():
                         if param.grad is not None:
-                            grad_buffer[name].append(param.grad.detach().clone())
+                            grad_buffer[param].append(param.grad.detach().clone())
                     batch_loss += loss.item()
                     batch_correct += correct.item()
                 model.zero_grad()
