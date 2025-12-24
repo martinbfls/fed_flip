@@ -84,14 +84,16 @@ def run(experiment_name, module_name, **kwargs):
 
     model_retrain, clean_metrics, poison_metrics = mini_train_multi(
         model=model_retrain,
-        train_data=user_datasets,
+        train_datasets=user_datasets,
         test_data=[test, poison_test.poison_dataset],
         batch_size=batch_size,
         opt=optimizer_retrain,
         scheduler=scheduler,
         epochs=epochs,
         record=True,
-        agg_method="mean"
+        agg_method="mean",
+        num_honests=num_honests,
+        num_poisoned=num_poisoned
     )
 
     # Save results
