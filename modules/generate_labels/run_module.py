@@ -16,6 +16,8 @@ from modules.base_utils.util import extract_toml, get_module_device, get_mtt_att
 from modules.generate_labels.utils import coalesce_attack_config, extract_experts,\
                                           extract_labels, sgd_step
 
+EXPERIMENT_NAME = "example_attack"
+MODULE_NAME = "generate_labels"
 
 def run(experiment_name, module_name, **kwargs):
     """

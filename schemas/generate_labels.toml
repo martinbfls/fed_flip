@@ -22,3 +22,5 @@ train_pct = "float: [0, 1]. Specifies percentage of dataset available to attacke
 lambda = "float: [0, infty]. Specifies regularization parameter. Set to 0 by default."
 expert_config = "dict. Specifies expert checkpoints. Set to default if omitted. See example_attack."
 attack_config = "dict. Specifies algorithm parameters. Set to default if ommited. See example_attack."
+num_honests = "int: {0,1,...,infty}. Num of honests workers"
+num_poisoned = "int: {0,1,...,infty}. Num of poisoned workers"
