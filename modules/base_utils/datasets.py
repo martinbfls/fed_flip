@@ -388,6 +388,9 @@ def load_cifar_dataset(path, train=True):
     dataset = datasets.CIFAR10(root=str(path),
                                train=train,
                                download=True)
+    # limit to first 100 samples for debugging
+    dataset.data = dataset.data[:100]
+    dataset.targets = dataset.targets[:100]
     return dataset
 
 

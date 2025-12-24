@@ -43,7 +43,8 @@ def run(experiment_name, module_name, **kwargs):
     epochs = args.get("epochs", None)
     expert_config = args.get('expert_config', {})
     config = coalesce_attack_config(args.get("attack_config", {}))
-
+    num_honests = args.get("num_honests", 2)
+    num_poisoned = args.get("num_poisoned", 1)
     output_dir = slurmify_path(args["output_dir"], slurm_id)
     Path(output_dir).mkdir(parents=True, exist_ok=True)
 
@@ -54,12 +55,14 @@ def run(experiment_name, module_name, **kwargs):
                              target_label)
 
     big_ims = needs_big_ims(expert_model_flag)
-    _, _, _, _, mtt_dataset =\
+    train_dataset, distill_dataset, test_dataset, poison_test_dataset, mtt_dataset =\
         get_matching_datasets(dataset_flag, poisoner, clean_label, train_pct=train_pct, big=big_ims)
     
+    n_classes = get_n_classes(dataset_flag)
     labels = extract_labels(mtt_dataset.distill, config['one_hot_temp'], n_classes)
     labels_init = torch.stack(extract_labels(mtt_dataset.distill, 1, n_classes))
     labels_syn = torch.stack(labels).requires_grad_(True)
+    agg_method = args.get("agg_method", "mean")
 
     # Load expert trajectories
     print("Loading expert trajectories...")
@@ -72,7 +75,6 @@ def run(experiment_name, module_name, **kwargs):
 
     # Optimize labels
     print("Training...")
-    n_classes = get_n_classes(dataset_flag)
 
     student_model = load_model(expert_model_flag, n_classes)
     expert_model = load_model(expert_model_flag, n_classes)
@@ -87,41 +89,117 @@ def run(experiment_name, module_name, **kwargs):
         batch_size=batch_size,
         epochs=epochs
     )
+    loaders = []
+    for _ in range(num_honests + num_poisoned):
+        loader, _ = either_dataloader_dataset_to_both(
+            mtt_dataset,
+            batch_size=batch_size,
+            shuffle=True
+        )
+        loaders.append(loader)
 
-    mtt_dataloader, _ = either_dataloader_dataset_to_both(mtt_dataset,
-                                                          batch_size=batch_size)
+    # mtt_dataloader, _ = either_dataloader_dataset_to_both(mtt_dataset,
+    #                                           batch_size=batch_size)
 
     losses = []
     with make_pbar(total=config['iterations'] * len(mtt_dataset)) as pbar:
         for i in range(config['iterations']):
-            for x_t, y_t, x_d, y_true, idx in mtt_dataloader:
-                # Prepare data
-                y_d = labels_syn[idx]
-                x_t, y_t, x_d, y_d = x_t.to(device), y_t.to(device), x_d.to(device), y_d.to(device)
+            for batches in zip(*loaders):
 
-                # Load parameters
                 checkpoint = torch.load(expert_starts[i])
                 expert_model.load_state_dict(checkpoint)
                 student_model.load_state_dict({k: v.clone() for k, v in checkpoint.items()})
+
                 expert_start = [v.clone() for v in expert_model.parameters()]
 
                 optimizer_expert.load_state_dict(torch.load(expert_opt_starts[i]))
                 state_dict = torch.load(expert_opt_starts[i])
 
-                # Take a single expert / poison step
-                expert_model.train()
-                expert_model.zero_grad()
-                loss = clf_loss(expert_model(x_t), y_t)
-                loss.backward()
+                grad_buffers_expert = {
+                    p: [] for p in expert_model.parameters() if p.requires_grad
+                }
+                grad_buffers_student = {
+                    p: [] for p in student_model.parameters() if p.requires_grad
+                }
+
+                optimizer_expert.zero_grad()
+
+                # Compute a poison step for expert
+                for i, batch in enumerate(batches):
+
+                    if i < num_honests:
+                        x, y = batch[0].to(device), batch[1].to(device)
+
+                        expert_model.train()
+                        expert_model.zero_grad()
+                        loss_exp = clf_loss(expert_model(x), y)
+                        loss_exp.backward()
+
+                        student_model.train()
+                        student_model.zero_grad()
+                        loss_student = clf_loss(student_model(x), y)
+                        loss_student.backward()
+
+                    else:
+                        x_t, y_t, x_d, y_true, idx = batch
+                        y_d = labels_syn[idx]
+
+                        x_t = x_t.to(device)
+                        y_t = y_t.to(device)
+                        x_d = x_d.to(device)
+                        y_d = y_d.to(device)
+
+                        expert_model.train()
+                        expert_model.zero_grad()
+                        loss_exp = clf_loss(expert_model(x_t), y_t)
+                        loss_exp.backward()
+
+                        student_model.train()
+                        student_model.zero_grad()
+                        loss_student = clf_loss(student_model(x_d), softmax(y_d))
+ 
+                        loss_student.backward()
+
+                    for p in expert_model.parameters():
+                        if p.requires_grad and p.grad is not None:
+                            grad_buffers_expert[p].append(p.grad.detach().clone())
+
+                    for p in student_model.parameters():
+                        if p.requires_grad and p.grad is not None:
+                            grad_buffers_student[p].append(p.grad.detach().clone())
+
+                for param in expert_model.parameters():
+                    if len(grad_buffers_expert[param]) == 0:
+                        continue
+
+                    grads = torch.stack(grad_buffers_expert[param], dim=0)
+                    if agg_method == "mean":
+                        agg_grad = grads.mean(dim=0)
+                    elif agg_method == "median":
+                        agg_grad = grads.median(dim=0).values
+                    else:
+                        raise ValueError(f"Unknown agg_method: {agg_method}")
+
+                    param.grad = agg_grad
+
                 optimizer_expert.step()
                 expert_model.eval()
 
-                # Train a single student step
-                student_model.train()
-                student_model.zero_grad()
+                for param in student_model.parameters():
+                    if len(grad_buffers_student[param]) == 0:
+                        continue
 
-                loss = clf_loss(student_model(x_d), softmax(y_d))
-                grads = torch.autograd.grad(loss, student_model.parameters(), create_graph=True)
+                    grads = torch.stack(grad_buffers_student[param], dim=0)
+                    if agg_method == "mean":
+                        agg_grad = grads.mean(dim=0)
+                    elif agg_method == "median":
+                        agg_grad = grads.median(dim=0).values
+                    else:
+                        raise ValueError(f"Unknown agg_method: {agg_method}")
+
+                    param.grad = agg_grad
+
+                grads = [p.grad.clone() for p in student_model.parameters() if p.requires_grad]
 
                 # Calculate loss
                 param_loss = torch.tensor(0.0).to(device)

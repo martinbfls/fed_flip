@@ -76,7 +76,7 @@ def load_model(model_flag, num_classes=10):
     if model_flag == "r32p":
         import modules.base_utils.model.resnet as resnet
 
-        return SequentialImageNetworkMod(resnet.resnet32(num_classes)).cuda()
+        return SequentialImageNetworkMod(resnet.resnet32(num_classes)).to(torch.device('mps') if torch.backends.mps.is_available() else torch.device('cuda:0' if torch.cuda.is_available() else 'cpu'))      #.cuda()
     elif model_flag == "r18":
         from pytorch_cifar.models import ResNet, BasicBlock        
         return SequentialImageNetwork(ResNet(BasicBlock,
@@ -267,6 +267,106 @@ def mini_train(
         return model, *acc_loss
     return model
 
+def mini_train_multi(
+    *,
+    model: torch.nn.Module,
+    train_datasets: Union[DataLoader, Dataset],
+    test_data: Union[Union[DataLoader, Dataset],
+                     Iterable[Union[DataLoader, Dataset]]] = None,
+    batch_size=32,
+    opt: optim.Optimizer,
+    scheduler,
+    epochs: int,
+    shuffle=True,
+    record=False,
+    agg_method="mean"
+):
+    device = get_module_device(model)
+    dataloaders = [either_dataloader_dataset_to_both(train_data,
+                                                      batch_size=batch_size,
+                                                      shuffle=shuffle)[0] for train_data in train_datasets]
+
+    n = len(dataloaders[0].dataset)
+    total_examples = epochs * n
+
+    if test_data:
+        num_sets = 1
+        if isinstance(test_data, Iterable):
+            num_sets = len(test_data)
+        else:
+            test_data = [test_data]
+        acc_loss = [[] for _ in range(num_sets)]
+
+    with make_pbar(total=total_examples) as pbar:
+        for epoch in range(1, epochs + 1):
+            train_epoch_loss, train_epoch_correct = 0, 0
+            model.train()
+            for batches in zip(*dataloaders):
+                grad_buffer = {
+                            p: [] for p in model.parameters() if p.requires_grad
+                        }
+                batch_loss, batch_correct = 0.0, 0
+                minibatch_size = 0
+                for batch in batches:
+                    x, y = batch[0].to(device), batch[1].to(device)
+                    minibatch_size = len(x)
+                    model.zero_grad()
+                    y_pred = model(x)
+                    loss = clf_loss(y_pred, y)
+                    correct = clf_correct(y_pred, y)
+                    loss.backward()
+                    for name, param in model.named_parameters():
+                        if param.grad is not None:
+                            grad_buffer[name].append(param.grad.detach().clone())
+                    batch_loss += loss.item()
+                    batch_correct += correct.item()
+                model.zero_grad()
+                for param in model.parameters():
+                    if len(grad_buffer[param]) == 0:
+                        continue
+
+                    grads = torch.stack(grad_buffer[param], dim=0)
+                    if agg_method == "mean":
+                        agg_grad = grads.mean(dim=0)
+                    elif agg_method == "median":
+                        agg_grad = grads.median(dim=0).values
+                    else:
+                        raise ValueError(f"Unknown agg_method: {agg_method}")
+
+                    param.grad = agg_grad
+
+                opt.step()
+
+                train_epoch_correct += int(batch_correct)
+                train_epoch_loss += float(batch_loss)
+                pbar.update(minibatch_size)
+
+
+            lr = get_mean_lr(opt)
+            if scheduler:
+                scheduler.step()
+
+            pbar_postfix = {
+                "acc": "%.2f" % (train_epoch_correct / n * 100),
+                "loss": "%.4g" % (train_epoch_loss / n),
+                "lr": "%.3g" % lr,
+            }
+            if test_data:
+                for i, dataset in enumerate(test_data):
+                    acc, loss = clf_eval(model, dataset)
+                    pbar_postfix.update(
+                        {
+                            "acc" + str(i): "%.2f" % (acc * 100),
+                            # "loss" + str(i): "%.4g" % loss,
+                        }
+                    )
+                    if record:
+                        acc_loss[i].append((acc, loss))
+            pbar.set_postfix(**pbar_postfix)
+
+    if record:
+        return model, *acc_loss
+    return model
 
 def get_train_info(
     params,

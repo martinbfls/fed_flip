@@ -26,6 +26,8 @@ def run(experiment_name, module_name, **kwargs):
     input_label_glob = slurmify_path(args["input_label_glob"], slurm_id)
     true_labels = slurmify_path(args["true_labels"], slurm_id)
     output_dir = slurmify_path(args["output_dir"], slurm_id)
+    num_honests = args.get("num_honests", 2)
+    num_poisoned = args.get("num_poisoned", 1)
 
     Path(output_dir).mkdir(parents=True, exist_ok=True)
 
@@ -53,13 +55,48 @@ def run(experiment_name, module_name, **kwargs):
     # Select flips and save results
     print("Selecting flips...")
     np.save(f'{output_dir}/true.npy', true)
+
+    N = len(true)
+    W = num_honests + num_poisoned
+    #assert N % W == 0, "Dataset size must be divisible by number of workers"
+    chunk_size = N // W
+
     for n in budgets:
-        to_save = true.copy()
-        if n != 0:
-            idx = np.argsort(distances.min(axis=0))[-n:]
-            all_labels[idx] = all_labels[idx] - 50000 * true[idx]
-            to_save[idx] = all_labels[idx]
-        np.save(f'{output_dir}/{n}.npy', to_save)
+        labels_final = true.copy()
+
+        if n > 0:
+            idx_flipped = np.argsort(distances.min(axis=0))[-n:]
+            labels_final[idx_flipped] = (
+                all_labels[idx_flipped] - 50000 * true[idx_flipped]
+            )
+        else:
+            idx_flipped = np.array([], dtype=int)
+
+        idx_flipped = np.unique(idx_flipped)
+        idx_clean = np.setdiff1d(np.arange(N), idx_flipped, assume_unique=True)
+
+        flipped_per_worker = np.array_split(idx_flipped, num_poisoned)
+
+        worker_datasets = []
+
+        clean_ptr = 0
+        for _ in range(num_honests):
+            sel = idx_clean[clean_ptr:clean_ptr + chunk_size]
+            clean_ptr += chunk_size
+            worker_datasets.append(labels_final[sel])
+
+        for p in range(num_poisoned):
+            flipped_idx_p = flipped_per_worker[p]
+            remaining = chunk_size - len(flipped_idx_p)
+
+            sel_clean = idx_clean[clean_ptr:clean_ptr + remaining]
+            clean_ptr += remaining
+
+            sel = np.concatenate([sel_clean, flipped_idx_p])
+            worker_datasets.append(labels_final[sel])
+
+        for w, data in enumerate(worker_datasets):
+            np.save(f"{output_dir}/{n}_worker{w}.npy", data)
 
 if __name__ == "__main__":
     experiment_name, module_name = sys.argv[1], sys.argv[2]

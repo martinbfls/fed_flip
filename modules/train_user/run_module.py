@@ -4,13 +4,12 @@ Trains a downstream (user) model on a dataset with input labels.
 
 from pathlib import Path
 import sys
-
+import os
 import torch
 import numpy as np
 
-from modules.base_utils.datasets import get_matching_datasets, get_n_classes, pick_poisoner,\
-                                        construct_user_dataset
-from modules.base_utils.util import extract_toml, get_train_info, mini_train, load_model,\
+from modules.base_utils.datasets import get_matching_datasets, get_n_classes,   pick_poisoner, construct_user_dataset
+from modules.base_utils.util import extract_toml, get_train_info, mini_train_multi, load_model,\
                                     needs_big_ims, slurmify_path, softmax
 
 
@@ -43,8 +42,11 @@ def run(experiment_name, module_name, **kwargs):
     true_path = slurmify_path(args.get("true_labels", None), slurm_id)
     output_path = slurmify_path(args["output_dir"], slurm_id)
 
-    Path(output_path).mkdir(parents=True, exist_ok=True)
+    num_honests = args.get("num_honests", 1)
+    num_poisoned = args.get("num_poisoned", 1)
 
+    Path(output_path).mkdir(parents=True, exist_ok=True)
+    user_datasets = []
     # Build datasets
     print("Building datasets...")
     poisoner = pick_poisoner(poisoner_flag, dataset_flag, target_label)
@@ -52,20 +54,23 @@ def run(experiment_name, module_name, **kwargs):
     big_ims = needs_big_ims(user_model_flag)
     _, distillation, test, poison_test, _ =\
         get_matching_datasets(dataset_flag, poisoner, clean_label, big=big_ims)
+    
+    for i in range(num_honests+num_poisoned):
+        labels_syn = torch.tensor(np.load(input_path.format(i)))        
 
-    labels_syn = torch.tensor(np.load(input_path))        
+        if alpha > 0:
+            assert true_path is not None
+            y_true = torch.tensor(np.load(true_path))
+            labels_d = softmax(alpha * y_true + (1 - alpha) * labels_syn)
+        else:
+            labels_d = softmax(labels_syn)
 
-    if alpha > 0:
-        assert true_path is not None
-        y_true = torch.tensor(np.load(true_path))
-        labels_d = softmax(alpha * y_true + (1 - alpha) * labels_syn)
-    else:
-        labels_d = softmax(labels_syn)
+        if not soft:
+            labels_d = labels_d.argmax(dim=1)
 
-    if not soft:
-        labels_d = labels_d.argmax(dim=1)
+        user_dataset = construct_user_dataset(distillation, labels_d)
+        user_datasets.append(user_dataset)
 
-    user_dataset = construct_user_dataset(distillation, labels_d)
 
     # Train user model
     print("Training user model...")
@@ -77,15 +82,16 @@ def run(experiment_name, module_name, **kwargs):
         epochs, optim_kwargs, scheduler_kwargs
     )
 
-    model_retrain, clean_metrics, poison_metrics = mini_train(
+    model_retrain, clean_metrics, poison_metrics = mini_train_multi(
         model=model_retrain,
-        train_data=user_dataset,
+        train_data=user_datasets,
         test_data=[test, poison_test.poison_dataset],
         batch_size=batch_size,
         opt=optimizer_retrain,
         scheduler=scheduler,
         epochs=epochs,
-        record=True
+        record=True,
+        agg_method="mean"
     )
 
     # Save results
