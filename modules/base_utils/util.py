@@ -271,7 +271,7 @@ def mini_train(
 def mini_train_multi(
     *,
     model: torch.nn.Module,
-    train_datasets: Union[DataLoader, Dataset],
+    train_datasets: Iterable[Union[DataLoader, Dataset]],
     test_data: Union[Union[DataLoader, Dataset],
                      Iterable[Union[DataLoader, Dataset]]] = None,
     batch_size=32,
@@ -279,54 +279,76 @@ def mini_train_multi(
     scheduler,
     epochs: int,
     shuffle=True,
+    callback=None,
     record=False,
-    agg_method="mean"
+    agg_method="mean",
 ):
     device = get_module_device(model)
-    dataloaders = [either_dataloader_dataset_to_both(train_data,
-                                                      batch_size=batch_size,
-                                                      shuffle=shuffle)[0] for train_data in train_datasets]
 
-    n = len(dataloaders[0].dataset)
-    total_examples = epochs * n
+    # Dataloaders clients
+    dataloaders = [
+        either_dataloader_dataset_to_both(
+            train_data,
+            batch_size=batch_size,
+            shuffle=shuffle
+        )[0]
+        for train_data in train_datasets
+    ]
 
+    client_sizes = [len(dl.dataset) for dl in dataloaders]
+    total_samples = sum(client_sizes)
+    total_examples = epochs * total_samples
+
+    # Test sets
     if test_data:
-        num_sets = 1
-        if isinstance(test_data, Iterable):
-            num_sets = len(test_data)
-        else:
+        if not isinstance(test_data, Iterable):
             test_data = [test_data]
-        acc_loss = [[] for _ in range(num_sets)]
+        acc_loss = [[] for _ in range(len(test_data))]
 
     with make_pbar(total=total_examples) as pbar:
         for epoch in range(1, epochs + 1):
-            train_epoch_loss, train_epoch_correct = 0, 0
             model.train()
+            train_epoch_loss = 0.0
+            train_epoch_correct = 0
+
             for batches in zip(*dataloaders):
-                grad_buffer = {
-                            p: [] for p in model.parameters() if p.requires_grad
-                        }
-                batch_loss, batch_correct = 0.0, 0
-                minibatch_size = 0
-                for batch in batches:
-                    x, y = batch[0].to(device), batch[1].to(device)
-                    minibatch_size = len(x)
+                # buffers de gradients
+                grad_buffer = [
+                    [] for _ in model.parameters()
+                ]
+
+                batch_loss = 0.0
+                batch_correct = 0
+                batch_samples = 0
+
+                for (x, y) in batches:
+                    x, y = x.to(device), y.to(device)
+                    batch_samples += len(x)
+
                     model.zero_grad()
                     y_pred = model(x)
                     loss = clf_loss(y_pred, y)
                     correct = clf_correct(y_pred, y)
+
                     loss.backward()
-                    for param in model.parameters():
-                        if param.grad is not None:
-                            grad_buffer[param].append(param.grad.detach().clone())
-                    batch_loss += loss.item()
+
+                    for i, p in enumerate(model.parameters()):
+                        if p.grad is not None:
+                            grad_buffer[i].append(
+                                p.grad.detach().clone()
+                            )
+
+                    batch_loss += loss.item() * len(x)
                     batch_correct += correct.item()
+
+                # agrégation
                 model.zero_grad()
-                for param in model.parameters():
-                    if len(grad_buffer[param]) == 0:
+                for i, p in enumerate(model.parameters()):
+                    if not grad_buffer[i]:
                         continue
 
-                    grads = torch.stack(grad_buffer[param], dim=0)
+                    grads = torch.stack(grad_buffer[i], dim=0)
+
                     if agg_method == "mean":
                         agg_grad = grads.mean(dim=0)
                     elif agg_method == "median":
@@ -334,40 +356,40 @@ def mini_train_multi(
                     else:
                         raise ValueError(f"Unknown agg_method: {agg_method}")
 
-                    param.grad = agg_grad
+                    p.grad = agg_grad
 
                 opt.step()
 
-                train_epoch_correct += int(batch_correct)
-                train_epoch_loss += float(batch_loss)
-                pbar.update(minibatch_size)
+                train_epoch_loss += batch_loss
+                train_epoch_correct += batch_correct
+                pbar.update(batch_samples)
 
+                if callback is not None:
+                    callback(model, opt, epoch)
 
-            lr = get_mean_lr(opt)
             if scheduler:
                 scheduler.step()
 
-            pbar_postfix = {
-                "acc": "%.2f" % (train_epoch_correct / n * 100),
-                "loss": "%.4g" % (train_epoch_loss / n),
+            lr = get_mean_lr(opt)
+            postfix = {
+                "acc": "%.2f" % (train_epoch_correct / total_samples * 100),
+                "loss": "%.4g" % (train_epoch_loss / total_samples),
                 "lr": "%.3g" % lr,
             }
+
             if test_data:
                 for i, dataset in enumerate(test_data):
                     acc, loss = clf_eval(model, dataset)
-                    pbar_postfix.update(
-                        {
-                            "acc" + str(i): "%.2f" % (acc * 100),
-                            # "loss" + str(i): "%.4g" % loss,
-                        }
-                    )
+                    postfix[f"acc{i}"] = "%.2f" % (acc * 100)
                     if record:
                         acc_loss[i].append((acc, loss))
-            pbar.set_postfix(**pbar_postfix)
+
+            pbar.set_postfix(**postfix)
 
     if record:
         return model, *acc_loss
     return model
+
 
 def get_train_info(
     params,

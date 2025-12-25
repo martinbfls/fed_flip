@@ -82,6 +82,8 @@ def run(experiment_name, module_name, **kwargs):
         epochs, optim_kwargs, scheduler_kwargs
     )
 
+    batch_size = batch_size // (num_honests + num_poisoned)
+
     model_retrain, clean_metrics, poison_metrics = mini_train_multi(
         model=model_retrain,
         train_datasets=user_datasets,
