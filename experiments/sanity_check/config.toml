@@ -30,7 +30,7 @@
 budgets = [150, 300, 500, 1000, 1500]
 input_label_glob = "experiments/sanity_check/labels.npy"
 true_labels = "experiments/sanity_check/true.npy"
-output_dir = "experiments/sanity_check/"
+output_dir = "experiments/sanity_check"
 num_honests = 0
 num_poisoned = 1
 
