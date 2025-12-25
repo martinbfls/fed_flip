@@ -35,7 +35,7 @@ num_honests = 0
 num_poisoned = 1
 
 [train_user]
-input_labels = "experiments/sanity_check/1500_worker{}.npy"
+input_labels = "experiments/sanity_check/1500.npy"
 user_model = "r32p"
 trainer = "sgd"
 dataset = "cifar"
