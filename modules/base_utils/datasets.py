@@ -547,7 +547,8 @@ def get_matching_datasets(
     label,
     seed=1,
     train_pct=1.0,
-    big=False
+    big=False,
+    clean=False
 ):
     train_transform = TRANSFORM_TRAIN_XY[dataset_flag + ('_big' if big else '')]
     test_transform = TRANSFORM_TEST_XY[dataset_flag + ('_big' if big else '')]
@@ -577,7 +578,7 @@ def get_matching_datasets(
     dataset_list = [train_dataset, poison_dataset]
     if dataset_flag == 'tiny_imagenet':   # Oversample poisons for expert training
         dataset_list.extend([poison_dataset] * 9)
-    train_dataset = ConcatDataset(dataset_list)
+    poisoned_train_dataset = ConcatDataset(dataset_list)
 
     if train_pct < 1.0:
         mtt_distill_dataset = Subset(distill_dataset, np.arange(int(len(distill_dataset) * train_pct)))
@@ -586,7 +587,8 @@ def get_matching_datasets(
                              train_transform, n_classes)
 
     distill_dataset = MappedDataset(distill_dataset, train_transform)
-    train_dataset = MappedDataset(train_dataset, train_transform)
+    poisoned_train_dataset = MappedDataset(poisoned_train_dataset, train_transform)
+    clean_train_dataset = MappedDataset(train_dataset, train_transform)
     test_dataset = MappedDataset(test_data, test_transform)
     poison_test_dataset = PoisonedDataset(
         test_data,
@@ -595,8 +597,10 @@ def get_matching_datasets(
         label=label if label != -1 else None,
         transform=test_transform,
     )
-
-    return train_dataset, distill_dataset, test_dataset, poison_test_dataset, mtt_dataset
+    if clean:
+        return clean_train_dataset, distill_dataset, test_dataset, poison_test_dataset, mtt_dataset
+    else:
+        return poisoned_train_dataset, distill_dataset, test_dataset, poison_test_dataset, mtt_dataset
 
 
 def construct_user_dataset(distill_dataset, labels, mask=None, target_label=None, include_labels=False):

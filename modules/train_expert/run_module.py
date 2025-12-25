@@ -36,6 +36,7 @@ def run(experiment_name, module_name, **kwargs):
     optim_kwargs = args.get("optim_kwargs", {})
     scheduler_kwargs = args.get("scheduler_kwargs", {})
     output_dir = slurmify_path(args["output_dir"], slurm_id)
+    clean_trajectory = args.get("clean_trajectory", False)
 
     Path(output_dir).mkdir(parents=True, exist_ok=True)
 
@@ -49,7 +50,7 @@ def run(experiment_name, module_name, **kwargs):
                              dataset_flag,
                              target_label)
     poison_train, _, test, poison_test, _ =\
-        get_matching_datasets(dataset_flag, poisoner, clean_label, train_pct=train_pct, big=big_ims)
+        get_matching_datasets(dataset_flag, poisoner, clean_label, train_pct=train_pct, big=big_ims, clean=clean_trajectory)
 
     # Train expert model
     print("Training expert model...")
