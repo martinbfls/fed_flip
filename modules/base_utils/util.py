@@ -285,7 +285,6 @@ def mini_train_multi(
 ):
     device = get_module_device(model)
 
-    # Dataloaders clients
     dataloaders = [
         either_dataloader_dataset_to_both(
             train_data,
@@ -341,7 +340,6 @@ def mini_train_multi(
                     batch_loss += loss.item() * len(x)
                     batch_correct += correct.item()
 
-                # agrégation
                 model.zero_grad()
                 for i, p in enumerate(model.parameters()):
                     if not grad_buffer[i]:
