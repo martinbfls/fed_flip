@@ -94,6 +94,7 @@ def run(experiment_name, module_name, **kwargs):
         batch_size=batch_size,
         epochs=epochs
     )
+    batch_size = batch_size // (num_honests + num_poisoned)
     loaders = []
     for _ in range(num_honests + num_poisoned):
         loader, _ = either_dataloader_dataset_to_both(
