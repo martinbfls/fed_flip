@@ -379,13 +379,6 @@ def run(experiment_name, module_name, **kwargs):
                 # --------------------------------------------------
                 optimizer_labels.zero_grad()
                 grand_loss.backward()
-                cpt = 0
-                if  cpt < 10:
-                    cpt +=1
-                    print(
-                        "[DEBUG] ||grad labels|| =",
-                        labels_syn.grad.norm().item()
-                    )
                 optimizer_labels.step()
 
                 losses.append(grand_loss.item())
