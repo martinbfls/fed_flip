@@ -1,6 +1,6 @@
 # Module to train and record an expert trajectory.
 #[train_expert]
-output_dir = "experiments/example_sanity_check/checkpoints/r32p_4xl/0/"
+output_dir = "out/checkpoints/r32p_4xl/0/"
 model = "r32p"
 trainer = "sgd"
 dataset = "cifar"
@@ -12,8 +12,8 @@ checkpoint_iters = 50
 
 # Module to generate attack labels from the expert trajectories.
 [generate_labels]
-input_pths = "experiments/example_sanity_check/checkpoints/r32p_4xl/{}/model_{}_{}.pth"
-opt_pths = "experiments/example_sanity_check/checkpoints/r32p_4xl/{}/model_{}_{}_opt.pth"
+input_pths = "out/checkpoints/r32p_4xl/{}/model_{}_{}.pth"
+opt_pths = "eout/checkpoints/r32p_4xl/{}/model_{}_{}_opt.pth"
 expert_model = "r32p"
 trainer = "sgd"
 dataset = "cifar"
