@@ -583,8 +583,9 @@ def get_matching_datasets(
     if train_pct < 1.0:
         mtt_distill_dataset = Subset(distill_dataset, np.arange(int(len(distill_dataset) * train_pct)))
 
-    mtt_dataset = MTTDataset(train_dataset, mtt_distill_dataset, poison_inds,
+    poisoned_mtt_dataset = MTTDataset(poisoned_train_dataset, mtt_distill_dataset, poison_inds,
                              train_transform, n_classes)
+    clean_mtt_dataset = MTTDataset(train_dataset, mtt_distill_dataset,        poison_inds, train_transform, n_classes)
 
     distill_dataset = MappedDataset(distill_dataset, train_transform)
     poisoned_train_dataset = MappedDataset(poisoned_train_dataset, train_transform)
@@ -598,9 +599,9 @@ def get_matching_datasets(
         transform=test_transform,
     )
     if clean:
-        return clean_train_dataset, distill_dataset, test_dataset, poison_test_dataset, mtt_dataset
+        return clean_train_dataset, distill_dataset, test_dataset, poison_test_dataset, clean_mtt_dataset
     else:
-        return poisoned_train_dataset, distill_dataset, test_dataset, poison_test_dataset, mtt_dataset
+        return poisoned_train_dataset, distill_dataset, test_dataset, poison_test_dataset, poisoned_mtt_dataset
 
 
 def construct_user_dataset(distill_dataset, labels, mask=None, target_label=None, include_labels=False):

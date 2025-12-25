@@ -48,6 +48,8 @@ def run(experiment_name, module_name, **kwargs):
     num_honests = args.get("num_honests", 2)
     num_poisoned = args.get("num_poisoned", 1)
     output_dir = slurmify_path(args["output_dir"], slurm_id)
+    attack = args.get("attack", "backdoor")
+    clean_trajectory = args.get("clean_trajectory", False)
     Path(output_dir).mkdir(parents=True, exist_ok=True)
 
     # Build datasets and initialize labels
@@ -58,13 +60,14 @@ def run(experiment_name, module_name, **kwargs):
 
     big_ims = needs_big_ims(expert_model_flag)
     train_dataset, distill_dataset, test_dataset, poison_test_dataset, mtt_dataset =\
-        get_matching_datasets(dataset_flag, poisoner, clean_label, train_pct=train_pct, big=big_ims)
+        get_matching_datasets(dataset_flag, poisoner, clean_label, train_pct=train_pct, big=big_ims, clean=clean_trajectory)
     
     n_classes = get_n_classes(dataset_flag)
     labels = extract_labels(mtt_dataset.distill, config['one_hot_temp'], n_classes)
     labels_init = torch.stack(extract_labels(mtt_dataset.distill, 1, n_classes))
     labels_syn = torch.stack(labels).requires_grad_(True)
     agg_method = args.get("agg_method", "mean")
+
 
     # Load expert trajectories
     print("Loading expert trajectories...")
@@ -220,6 +223,8 @@ def run(experiment_name, module_name, **kwargs):
                 # Add Regularization and calculate loss
                 reg_term = lam * torch.linalg.vector_norm(softmax(labels_syn) - labels_init, ord=1, axis=1).mean()
                 grand_loss = (param_loss / param_dist) + reg_term
+                if attack == "untargeted":
+                    grand_loss = -grand_loss
                 g_loss = grand_loss.item()
 
                 # Optimize labels and learning rate
