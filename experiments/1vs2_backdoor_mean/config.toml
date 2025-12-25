@@ -28,7 +28,7 @@ agg_method = "mean"
 
 # Module to flip labels at the provided budgets.
 [select_flips]
-budgets = [150, 300, 500, 1000, 1500]
+budgets = [150, 300, 500, 1000, 1500, 2000, 2500, 5000, 10000]
 input_label_glob = "experiments/1vs2_backdoor_mean/labels.npy"
 true_labels = "experiments/1vs2_backdoor_mean/true.npy"
 output_dir = "experiments/1vs2_backdoor_mean"
