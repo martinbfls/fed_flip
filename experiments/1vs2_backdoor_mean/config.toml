@@ -37,7 +37,7 @@ num_poisoned = 1
 
 [train_user]
 input_labels = "experiments/1vs2_backdoor_mean/"
-budget = 1500
+budget = 5000
 user_model = "r32p"
 trainer = "sgd"
 dataset = "cifar"
