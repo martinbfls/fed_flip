@@ -1,5 +1,5 @@
 # Module to train and record an expert trajectory.
-#[train_expert]
+[train_expert]
 output_dir = "out/checkpoints/r32p_4xl/0/"
 model = "r32p"
 trainer = "sgd"
