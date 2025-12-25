@@ -1,28 +1,32 @@
 """
-Trains a downstream (user) model on a dataset with input labels.
+Trains a downstream (user) model on reconstructed datasets with input labels.
 """
 
 from pathlib import Path
 import sys
-import os
 import torch
 import numpy as np
+from torch.utils.data import Subset
 
-from modules.base_utils.datasets import get_matching_datasets, get_n_classes,   pick_poisoner, construct_user_dataset
-from modules.base_utils.util import extract_toml, get_train_info, mini_train_multi, load_model,\
-                                    needs_big_ims, slurmify_path, softmax
+from modules.base_utils.datasets import (
+    get_matching_datasets,
+    get_n_classes,
+    pick_poisoner,
+    construct_user_dataset,
+)
+from modules.base_utils.util import (
+    extract_toml,
+    get_train_info,
+    mini_train_multi,
+    load_model,
+    needs_big_ims,
+    slurmify_path,
+    softmax,
+)
 
 
 def run(experiment_name, module_name, **kwargs):
-    """
-    Runs user model training and saves metrics.
-
-    :param experiment_name: Name of the experiment in configuration.
-    :param module_name: Name of the module in configuration.
-    :param kwargs: Additional arguments (such as slurm id).
-    """
-
-    slurm_id = kwargs.get('slurm_id', None)
+    slurm_id = kwargs.get("slurm_id", None)
     args = extract_toml(experiment_name, module_name)
 
     user_model_flag = args["user_model"]
@@ -31,77 +35,96 @@ def run(experiment_name, module_name, **kwargs):
     poisoner_flag = args["poisoner"]
     clean_label = args["source_label"]
     target_label = args["target_label"]
+
     soft = args.get("soft", True)
+    alpha = args.get("alpha", 0.0)
+
     batch_size = args.get("batch_size", None)
     epochs = args.get("epochs", None)
     optim_kwargs = args.get("optim_kwargs", {})
     scheduler_kwargs = args.get("scheduler_kwargs", {})
-    alpha = args.get("alpha", None)
-
-    input_path = slurmify_path(args["input_labels"], slurm_id)
-    true_path = slurmify_path(args.get("true_labels", None), slurm_id)
-    output_path = slurmify_path(args["output_dir"], slurm_id)
 
     num_honests = args.get("num_honests", 0)
     num_poisoned = args.get("num_poisoned", 1)
+    num_workers = num_honests + num_poisoned
+    budget = args.get("budget", 1500)
+    input_dir = Path(slurmify_path(args["input_labels"], slurm_id))
+    true_path = slurmify_path(args.get("true_labels", None), slurm_id)
+    output_dir = Path(slurmify_path(args["output_dir"], slurm_id))
+    output_dir.mkdir(parents=True, exist_ok=True)
 
-    Path(output_path).mkdir(parents=True, exist_ok=True)
-    user_datasets = []
-    # Build datasets
-    print("Building datasets...")
+    print("Loading base datasets...")
     poisoner = pick_poisoner(poisoner_flag, dataset_flag, target_label)
-
     big_ims = needs_big_ims(user_model_flag)
-    _, distillation, test, poison_test, _ =\
-        get_matching_datasets(dataset_flag, poisoner, clean_label, big=big_ims)
-    
-    for i in range(num_honests+num_poisoned):
-        labels_syn = torch.tensor(np.load(input_path.format(i)))        
+
+    _, distillation, test, poison_test, _ = get_matching_datasets(
+        dataset_flag,
+        poisoner,
+        clean_label,
+        big=big_ims,
+    )
+
+    if alpha > 0:
+        assert true_path is not None
+        y_true = torch.tensor(np.load(true_path))
+
+    print("Reconstructing worker datasets...")
+    user_datasets = []
+
+    for w in range(num_workers):
+        idx = np.load(input_dir / f"{budget}_worker{w}_indices.npy")
+        labels_syn = torch.tensor(
+            np.load(input_dir / f"{budget}_worker{w}_labels.npy"),
+            dtype=torch.float,
+        )
+
+        subset = Subset(distillation, idx)
 
         if alpha > 0:
-            assert true_path is not None
-            y_true = torch.tensor(np.load(true_path))
-            labels_d = softmax(alpha * y_true + (1 - alpha) * labels_syn)
+            labels_true_local = y_true[idx]
+            labels_d = softmax(alpha * labels_true_local +
+                               (1 - alpha) * labels_syn)
         else:
             labels_d = softmax(labels_syn)
 
         if not soft:
             labels_d = labels_d.argmax(dim=1)
 
-        user_dataset = construct_user_dataset(distillation, labels_d)
+        user_dataset = construct_user_dataset(subset, labels_d)
         user_datasets.append(user_dataset)
 
-
-    # Train user model
     print("Training user model...")
     n_classes = get_n_classes(dataset_flag)
     model_retrain = load_model(user_model_flag, n_classes)
-        
-    batch_size, epochs, optimizer_retrain, scheduler = get_train_info(
-        model_retrain.parameters(), trainer_flag, batch_size,
-        epochs, optim_kwargs, scheduler_kwargs
+
+    batch_size, epochs, optimizer, scheduler = get_train_info(
+        model_retrain.parameters(),
+        trainer_flag,
+        batch_size,
+        epochs,
+        optim_kwargs,
+        scheduler_kwargs,
     )
 
-    batch_size = batch_size // (num_honests + num_poisoned)
+    batch_size = batch_size // num_workers
 
     model_retrain, clean_metrics, poison_metrics = mini_train_multi(
         model=model_retrain,
         train_datasets=user_datasets,
         test_data=[test, poison_test.poison_dataset],
         batch_size=batch_size,
-        opt=optimizer_retrain,
+        opt=optimizer,
         scheduler=scheduler,
         epochs=epochs,
         record=True,
-        agg_method="mean"
+        agg_method="mean",
     )
 
-    # Save results
     print("Saving results...")
-    np.save(output_path + "paccs.npy", poison_metrics)
-    np.save(output_path + "caccs.npy", clean_metrics)
-    np.save(output_path + "labels.npy", labels_d.numpy())
-    torch.save(model_retrain.state_dict(), output_path + "model.pth")
+    np.save(output_dir / "paccs.npy", poison_metrics)
+    np.save(output_dir / "caccs.npy", clean_metrics)
+    torch.save(model_retrain.state_dict(), output_dir / "model.pth")
+
 
 if __name__ == "__main__":
     experiment_name, module_name = sys.argv[1], sys.argv[2]
