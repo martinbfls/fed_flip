@@ -42,7 +42,7 @@ def run(experiment_name, module_name, **kwargs):
     true_path = slurmify_path(args.get("true_labels", None), slurm_id)
     output_path = slurmify_path(args["output_dir"], slurm_id)
 
-    num_honests = args.get("num_honests", 1)
+    num_honests = args.get("num_honests", 0)
     num_poisoned = args.get("num_poisoned", 1)
 
     Path(output_path).mkdir(parents=True, exist_ok=True)
