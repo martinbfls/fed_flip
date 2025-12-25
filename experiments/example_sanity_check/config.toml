@@ -13,7 +13,7 @@ checkpoint_iters = 50
 # Module to generate attack labels from the expert trajectories.
 [generate_labels]
 input_pths = "out/checkpoints/r32p_4xl/{}/model_{}_{}.pth"
-opt_pths = "eout/checkpoints/r32p_4xl/{}/model_{}_{}_opt.pth"
+opt_pths = "out/checkpoints/r32p_4xl/{}/model_{}_{}_opt.pth"
 expert_model = "r32p"
 trainer = "sgd"
 dataset = "cifar"

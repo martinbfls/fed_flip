@@ -4,9 +4,9 @@ import torch
 
 DEFAULT_ATTACK_ITERATIONS = 20
 DEFAULT_EXPERT_CONFIG = {
-    'experts': 50,
+    'experts': 1, #50,
     'min': 0,
-    'max': 15,
+    'max': 20,
     'trajectories': [50, 100, 150, 200]
 }
 DEFAULT_SGD_LABELS_KWARGS = {
