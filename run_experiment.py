@@ -24,6 +24,7 @@ for module_name, module_config in args.items():
     relative_path = "schemas/" + module_name + ".toml"
     full_path = util.generate_full_path(relative_path)
 
+    os.makedirs(os.path.dirname(full_path), exist_ok=True)
     # Check if path exists
     if not os.path.exists(full_path):
         print(f"Malformed module! Module {module_name} does not exist!")
