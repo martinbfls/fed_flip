@@ -109,69 +109,68 @@ def run(experiment_name, module_name, **kwargs):
     # losses = []
     # with make_pbar(total=config['iterations'] * len(mtt_dataset)) as pbar:
     #     for i in range(config['iterations']):
-    #         for batches in zip(*loaders):
+            # for batches in zip(*loaders):
 
-    #             checkpoint = torch.load(expert_starts[i])
-    #             expert_model.load_state_dict(checkpoint)
-    #             student_model.load_state_dict({k: v.clone() for k, v in checkpoint.items()})
+            #     checkpoint = torch.load(expert_starts[i])
+            #     expert_model.load_state_dict(checkpoint)
+            #     student_model.load_state_dict({k: v.clone() for k, v in checkpoint.items()})
 
-    #             expert_start = [v.clone() for v in expert_model.parameters()]
+            #     expert_start = [v.clone() for v in expert_model.parameters()]
 
-    #             optimizer_expert.load_state_dict(torch.load(expert_opt_starts[i]))
-    #             state_dict = torch.load(expert_opt_starts[i])
+            #     optimizer_expert.load_state_dict(torch.load(expert_opt_starts[i]))
+            #     state_dict = torch.load(expert_opt_starts[i])
 
-    #             grad_buffers_expert = {
-    #                 p: [] for p in expert_model.parameters() if p.requires_grad
-    #             }
-    #             grad_buffers_student = {
-    #                 p: [] for p in student_model.parameters() if p.requires_grad
-    #             }
+            #     grad_buffers_expert = {
+            #         p: [] for p in expert_model.parameters() if p.requires_grad
+            #     }
+            #     grad_buffers_student = {
+            #         p: [] for p in student_model.parameters() if p.requires_grad
+            #     }
 
-    #             optimizer_expert.zero_grad()
+            #     optimizer_expert.zero_grad()
 
-    #             # Compute a poison step for expert
-    #             for i, batch in enumerate(batches):
+            #     # Compute a poison step for expert
+            #     for i, batch in enumerate(batches):
 
-    #                 if i < num_honests:
-    #                     x, y = batch[0].to(device), batch[1].to(device)
+            #         if i < num_clean:
+            #             x, y = batch[0].to(device), batch[1].to(device)
 
-    #                     expert_model.train()
-    #                     expert_model.zero_grad()
-    #                     loss_exp = clf_loss(expert_model(x), y)
-    #                     loss_exp.backward()
+            #             expert_model.train()
+            #             expert_model.zero_grad()
+            #             loss_exp = clf_loss(expert_model(x), y)
+            #             loss_exp.backward()
 
-    #                     student_model.train()
-    #                     student_model.zero_grad()
-    #                     loss_student = clf_loss(student_model(x), y)
-    #                     loss_student.backward()
+            #             student_model.train()
+            #             student_model.zero_grad()
+            #             loss_student = clf_loss(student_model(x), y)
+            #             loss_student.backward()
 
-    #                 else:
-    #                     x_t, y_t, x_d, y_true, idx = batch
-    #                     y_d = labels_syn[idx]
+            #         else:
+            #             x_t, y_t, x_d, y_true, idx = batch
+            #             y_d = labels_syn[idx]
 
-    #                     x_t = x_t.to(device)
-    #                     y_t = y_t.to(device)
-    #                     x_d = x_d.to(device)
-    #                     y_d = y_d.to(device)
+            #             x_t = x_t.to(device)
+            #             y_t = y_t.to(device)
+            #             x_d = x_d.to(device)
+            #             y_d = y_d.to(device)
 
-    #                     expert_model.train()
-    #                     expert_model.zero_grad()
-    #                     loss_exp = clf_loss(expert_model(x_t), y_t)
-    #                     loss_exp.backward()
+            #             expert_model.train()
+            #             expert_model.zero_grad()
+            #             loss_exp = clf_loss(expert_model(x_t), y_t)
+            #             loss_exp.backward()
 
-    #                     student_model.train()
-    #                     student_model.zero_grad()
-    #                     loss_student = clf_loss(student_model(x_d), softmax(y_d))
- 
-    #                     loss_student.backward()
+            #             student_model.train()
+            #             student_model.zero_grad()
+            #             loss_student = clf_loss(student_model(x_d), softmax(y_d))
+            #             grads = torch.autograd.grad(loss_student, student_model.parameters(), create_graph=True)
 
-    #                 for p in expert_model.parameters():
-    #                     if p.requires_grad and p.grad is not None:
-    #                         grad_buffers_expert[p].append(p.grad.detach().clone())
+            #         for p in expert_model.parameters():
+            #             if p.requires_grad and p.grad is not None:
+            #                 grad_buffers_expert[p].append(p.grad.detach().clone())
 
-    #                 for p in student_model.parameters():
-    #                     if p.requires_grad and p.grad is not None:
-    #                         grad_buffers_student[p].append(p.grad.detach().clone())
+            #         for p in student_model.parameters():
+            #             if p.requires_grad and p.grad is not None:
+            #                 grad_buffers_student[p].append(p.grad.clone())
 
     #             for param in expert_model.parameters():
     #                 if len(grad_buffers_expert[param]) == 0:
