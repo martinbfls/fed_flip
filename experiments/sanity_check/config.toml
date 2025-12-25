@@ -11,19 +11,19 @@
 #checkpoint_iters = 50
 
 # Module to generate attack labels from the expert trajectories.
-#[generate_labels]
-#input_pths = "out/checkpoints/r32p_4xl/{}/model_{}_{}.pth"
-#opt_pths = "out/checkpoints/r32p_4xl/{}/model_{}_{}_opt.pth"
-#expert_model = "r32p"
-#trainer = "sgd"
-#dataset = "cifar"
-#source_label = 9
-#target_label = 4
-#poisoner = "4xl"
-#output_dir = "experiments/sanity_check/"
-#lambda = 0.0
-#num_honests = 0
-#num_poisoned = 1
+[generate_labels]
+input_pths = "out/checkpoints/r32p_4xl/{}/model_{}_{}.pth"
+opt_pths = "out/checkpoints/r32p_4xl/{}/model_{}_{}_opt.pth"
+expert_model = "r32p"
+trainer = "sgd"
+dataset = "cifar"
+source_label = 9
+target_label = 4
+poisoner = "4xl"
+output_dir = "experiments/sanity_check/"
+lambda = 0.0
+num_honests = 0
+num_poisoned = 1
 
 # Module to flip labels at the provided budgets.
 [select_flips]
