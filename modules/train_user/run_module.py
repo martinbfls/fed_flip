@@ -52,6 +52,7 @@ def run(experiment_name, module_name, **kwargs):
     true_path = slurmify_path(args.get("true_labels", None), slurm_id)
     output_dir = Path(slurmify_path(args["output_dir"], slurm_id))
     output_dir.mkdir(parents=True, exist_ok=True)
+    agg_method = args.get("agg_method", "mean")
 
     print("Loading base datasets...")
     poisoner = pick_poisoner(poisoner_flag, dataset_flag, target_label)
@@ -117,7 +118,7 @@ def run(experiment_name, module_name, **kwargs):
         scheduler=scheduler,
         epochs=epochs,
         record=True,
-        agg_method="mean",
+        agg_method=agg_method,
     )
 
     print("Saving results...")
