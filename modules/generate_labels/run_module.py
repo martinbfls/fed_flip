@@ -225,7 +225,7 @@ def run(experiment_name, module_name, **kwargs):
                 grand_loss = (param_loss / param_dist) + reg_term
                 if attack == "untargeted":
                     grand_loss = -grand_loss
-                g_loss = grand_loss.item()
+                g_loss = grand_loss.detach().item()
 
                 # Optimize labels and learning rate
                 optimizer_labels.zero_grad()

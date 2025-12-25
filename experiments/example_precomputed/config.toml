@@ -14,3 +14,4 @@ poisoner = "1xs"
 output_dir = "experiments/example_precomputed/"
 soft = false
 alpha = 0.0
+num_poisoned = 1
