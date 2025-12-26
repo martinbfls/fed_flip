@@ -1,0 +1,127 @@
+[train_user]
+input_labels = "experiments/1vs2_backdoor_mean/"
+budget = 150
+user_model = "r32p"
+trainer = "sgd"
+dataset = "cifar"
+source_label = 9
+target_label = 4
+poisoner = "4xl"
+output_dir = "experiments/1vs2_backdoor_mean/150"
+soft = false
+alpha = 0.0
+num_honests = 2
+num_poisoned = 1
+agg_method = "mean"
+
+[train_user]
+input_labels = "experiments/1vs2_backdoor_mean/"
+budget = 300
+user_model = "r32p"
+trainer = "sgd"
+dataset = "cifar"
+source_label = 9
+target_label = 4
+poisoner = "4xl"
+output_dir = "experiments/1vs2_backdoor_mean/300"
+soft = false
+alpha = 0.0
+num_honests = 2
+num_poisoned = 1
+agg_method = "mean"
+
+[train_user]
+input_labels = "experiments/1vs2_backdoor_mean/"
+budget = 500
+user_model = "r32p"
+trainer = "sgd"
+dataset = "cifar"
+source_label = 9
+target_label = 4
+poisoner = "4xl"
+output_dir = "experiments/1vs2_backdoor_mean/500"
+soft = false
+alpha = 0.0
+num_honests = 2
+num_poisoned = 1
+agg_method = "mean"
+
+[train_user]
+input_labels = "experiments/1vs2_backdoor_mean/"
+budget = 1000
+user_model = "r32p"
+trainer = "sgd"
+dataset = "cifar"
+source_label = 9
+target_label = 4
+poisoner = "4xl"
+output_dir = "experiments/1vs2_backdoor_mean/1000"
+soft = false
+alpha = 0.0
+num_honests = 2
+num_poisoned = 1
+agg_method = "mean"
+
+[train_user]
+input_labels = "experiments/1vs2_backdoor_mean/"
+budget = 1500
+user_model = "r32p"
+trainer = "sgd"
+dataset = "cifar"
+source_label = 9
+target_label = 4
+poisoner = "4xl"
+output_dir = "experiments/1vs2_backdoor_mean/1500"
+soft = false
+alpha = 0.0
+num_honests = 2
+num_poisoned = 1
+agg_method = "mean"
+
+[train_user]
+input_labels = "experiments/1vs2_backdoor_mean/"
+budget = 2000
+user_model = "r32p"
+trainer = "sgd"
+dataset = "cifar"
+source_label = 9
+target_label = 4
+poisoner = "4xl"
+output_dir = "experiments/1vs2_backdoor_mean/2000"
+soft = false
+alpha = 0.0
+num_honests = 2
+num_poisoned = 1
+agg_method = "mean"
+
+[train_user]
+input_labels = "experiments/1vs2_backdoor_mean/"
+budget = 2500
+user_model = "r32p"
+trainer = "sgd"
+dataset = "cifar"
+source_label = 9
+target_label = 4
+poisoner = "4xl"
+output_dir = "experiments/1vs2_backdoor_mean/2500"
+soft = false
+alpha = 0.0
+num_honests = 2
+num_poisoned = 1
+agg_method = "mean"
+
+[train_user]
+input_labels = "experiments/1vs2_backdoor_mean/"
+budget = 10000
+user_model = "r32p"
+trainer = "sgd"
+dataset = "cifar"
+source_label = 9
+target_label = 4
+poisoner = "4xl"
+output_dir = "experiments/1vs2_backdoor_mean/10000"
+soft = false
+alpha = 0.0
+num_honests = 2
+num_poisoned = 1
+agg_method = "mean"
