@@ -1,0 +1,15 @@
+[train_user]
+input_labels = "experiments/1vs2_backdoor_mean/"
+budget = 1000
+user_model = "r32p"
+trainer = "sgd"
+dataset = "cifar"
+source_label = 9
+target_label = 4
+poisoner = "4xl"
+output_dir = "experiments/1vs2_backdoor_mean/1000"
+soft = false
+alpha = 0.0
+num_honests = 2
+num_poisoned = 1
+agg_method = "mean"
