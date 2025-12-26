@@ -24,7 +24,7 @@ output_dir = "experiments/1vs2_backdoor_mean/"
 lambda = 0.0
 num_honests = 2
 num_poisoned = 1
-agg_method = "mean"
+agg_method = "median"
 attack = "backdoor"
 
 # Module to flip labels at the provided budgets.
@@ -50,4 +50,4 @@ soft = false
 alpha = 0.0
 num_honests = 2
 num_poisoned = 1
-agg_method = "mean"
+agg_method = "median"
