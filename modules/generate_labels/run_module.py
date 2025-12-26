@@ -19,6 +19,15 @@ from modules.generate_labels.utils import coalesce_attack_config, extract_expert
 EXPERIMENT_NAME = "example_attack"
 MODULE_NAME = "generate_labels"
 
+def cosine_similarity_list(grads_a, grads_b, eps=1e-8):
+    dot, na, nb = 0.0, 0.0, 0.0
+    for ga, gb in zip(grads_a, grads_b):
+        dot += torch.sum(ga * gb)
+        na += torch.sum(ga ** 2)
+        nb += torch.sum(gb ** 2)
+    return dot / (torch.sqrt(na) * torch.sqrt(nb) + eps)
+
+
 def run(experiment_name, module_name, **kwargs):
     """
     Optimizes and saves poisoned logit labels.
@@ -321,14 +330,22 @@ def run(experiment_name, module_name, **kwargs):
                 # --------------------------------------------------
                 # Aggregate expert gradients
                 # --------------------------------------------------
+                agg_expert_grads = []
+
                 for i, p in enumerate(expert_params):
                     grads = torch.stack(expert_grad_buf[i], dim=0)
+
                     if agg_method == "mean":
-                        p.grad = grads.mean(dim=0)
+                        g = grads.mean(dim=0)
                     elif agg_method == "median":
-                        p.grad = grads.median(dim=0).values
+                        g = grads.median(dim=0).values
                     else:
                         raise ValueError(agg_method)
+
+                    if attack in ["grad_ascent", "orth_grad"]:
+                        agg_expert_grads.append(g.detach())
+
+                    p.grad = g
 
                 optimizer_expert.step()
                 expert_model.eval()
@@ -350,29 +367,44 @@ def run(experiment_name, module_name, **kwargs):
                 param_loss = torch.tensor(0.0, device=device)
                 param_dist = torch.tensor(0.0, device=device)
 
-                for init, student, expert, grad, state in zip(
-                    expert_start,
-                    student_params,
-                    expert_params,
-                    agg_student_grads,
-                    state_dict["state"].values(),
-                ):
-                    student_update = sgd_step(
-                        student, grad, state, state_dict["param_groups"][0]
-                    )
-
-                    param_loss += total_mse_distance(student_update, expert)
-                    param_dist += total_mse_distance(init, expert)
-
                 reg_term = lam * torch.linalg.vector_norm(
                     softmax(labels_syn) - labels_init,
                     ord=1,
                     dim=1
                 ).mean()
 
-                grand_loss = (param_loss / param_dist) + reg_term
-                if attack == "untargeted":
-                    grand_loss = -grand_loss
+                if attack in ["backdoor", "untargeted"]:
+                    for init, student, expert, grad, state in zip(
+                        expert_start,
+                        student_params,
+                        expert_params,
+                        agg_student_grads,
+                        state_dict["state"].values(),
+                    ):
+                        student_update = sgd_step(
+                            student, grad, state, state_dict["param_groups"][0]
+                        )
+
+                        param_loss += total_mse_distance(student_update, expert)
+                        param_dist += total_mse_distance(init, expert)
+
+                    grand_loss = (param_loss / param_dist) + reg_term
+                    if attack == "untargeted":
+                        grand_loss = -grand_loss
+                
+                elif attack == "grad_ascent":
+                    cos = cosine_similarity_list(
+                        agg_student_grads,
+                        agg_expert_grads
+                    )
+                    grand_loss = cos + reg_term
+
+                elif attack == "orth_grad":
+                    cos = cosine_similarity_list(
+                        agg_student_grads,
+                        agg_expert_grads
+                    )
+                    grand_loss = cos ** 2 + reg_term
 
                 # --------------------------------------------------
                 # Optimize labels
@@ -387,7 +419,6 @@ def run(experiment_name, module_name, **kwargs):
                     g_loss=f"{np.mean(losses[-20:]):.4g}",
                     reg=f"{reg_term.item():.4g}"
                 )
-
 
     # Save results
     print("Saving results...")
